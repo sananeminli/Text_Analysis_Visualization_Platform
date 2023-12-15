@@ -147,10 +147,11 @@ def generate_network_graph(G , pos):
     return html_content
 
 def sna(G):
-    degree_centrality = nx.degree_centrality(G)
+    degree_centrality = nx.degree_centrality(G  )
     closeness_centrality = nx.closeness_centrality(G)
     betweenness_centrality = nx.betweenness_centrality(G)
-    eigenvector_centrality = nx.eigenvector_centrality(G)
+    eigenvector_centrality = nx.eigenvector_centrality(G, max_iter=300)
+
     centralities_dict = {
     'Node': list(G.nodes()),
     'Degree Centrality': list(degree_centrality.values()),
