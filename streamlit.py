@@ -180,6 +180,9 @@ if 'negative_entities' not in st.session_state:
 if 'positive_entities' not in st.session_state:
         # If not, initialize it
         st.session_state.positive_entities = []
+if 'neutural_entities' not in st.session_state:
+        # If not, initialize it
+        st.session_state.neutural_entities = []
 if 'sentiment' not in st.session_state:
         # If not, initialize it
         st.session_state.sentiment = ''
@@ -199,6 +202,7 @@ if 'videos' not in st.session_state:
     st.session_state.videos = []
 if 'id' not in st.session_state:
     st.session_state.id = []
+
 
 
 
