@@ -169,7 +169,7 @@ def sna(G):
 st.title("Text Analysis App")
 query = st.text_input("Enter YouTube search query:")
 
-search = st.button("Seacrh videos!")
+search = st.button("Search videos!")
 
 if 'wordcloud_image' not in st.session_state:
         # If not, initialize it
@@ -670,31 +670,32 @@ if len(st.session_state.neutural_entities) > 0 :
 # Display the DataFrame with clickable Wikipedia links
 
 
+if len(st.session_state.neutural_entities)>0 or len( st.session_state.negative_entities)>0  or len(st.session_state.positive_entities)>0:
+        
+    with st.expander("Positive entites"):
+        st.write(df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
+    with st.expander("Negative entites"):
+        st.write(neg_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
+    with st.expander("Neutral entites"):
+        st.write(neu_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
+    with st.expander("All entites"):
+        all_list = []
+        all_ent = st.session_state.neutural_entities + st.session_state.negative_entities + st.session_state.positive_entities
+        for result in all_ent:
+            for link in result:
+                title = link
+                link = link.replace(" ", "_")
 
-with st.expander("Positive entites"):
-    st.write(df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
-with st.expander("Negative entites"):
-    st.write(neg_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
-with st.expander("Neutral entites"):
-    st.write(neu_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
-with st.expander("All entites"):
-    all_list = []
-    all_ent = st.session_state.neutural_entities + st.session_state.negative_entities + st.session_state.positive_entities
-    for result in all_ent:
-        for link in result:
-            title = link
-            link = link.replace(" ", "_")
+                all_list.append(link)
+        all_df = pd.DataFrame(all_list, columns=['Entity'])
+        all_df['Frequency'] = all_df.groupby('Entity')['Entity'].transform('count')
+        all_df = all_df.drop_duplicates(subset='Entity')
+    
+        all_df = all_df.sort_values(by='Frequency', ascending=False)
+        all_df = all_df.reset_index(drop=True)
+        all_df['Entity'] = all_df['Entity'].apply(make_clickable)
 
-            all_list.append(link)
-    all_df = pd.DataFrame(all_list, columns=['Entity'])
-    all_df['Frequency'] = all_df.groupby('Entity')['Entity'].transform('count')
-    all_df = all_df.drop_duplicates(subset='Entity')
- 
-    all_df = all_df.sort_values(by='Frequency', ascending=False)
-    all_df = all_df.reset_index(drop=True)
-    all_df['Entity'] = all_df['Entity'].apply(make_clickable)
-
-    st.write(all_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
+        st.write(all_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
 
 
 
