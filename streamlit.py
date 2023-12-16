@@ -388,7 +388,8 @@ def analyze():
 
 
                     last_comment = x 
-                    
+                if not G.has_node(negative_entities[i][j]):
+                    G.add_node(negative_entities[i][j]) 
                 indexxx += int(negative_comments.iloc[x, negative_comments.columns.get_loc("Size")])
                 #print(indexxx)
 
@@ -396,6 +397,12 @@ def analyze():
         df_comment_index+=5 #ikinci array finishleyende +5 olmaidi
         if df_comment_index> df_size:
                 break
+    for result in negative_entities:
+        for link in result:
+            print(link)
+            if not G.has_node(link):
+                G.add_node(link)
+                
     pos = nx.spring_layout(G)
 
     #nx.draw(G,pos, with_labels=True,node_color='white',  font_size=10, bbox=dict(boxstyle="round,pad=0.3", alpha=0.5))
@@ -433,7 +440,8 @@ def analyze():
 
 
                     last_comment = x 
-                    
+                if not G.has_node(positive_entities[i][j]):
+                    G.add_node(positive_entities[i][j])    
                 indexxx += int(positive_comments.iloc[x, positive_comments.columns.get_loc("Size")])
                 #print(indexxx)
 
@@ -441,6 +449,12 @@ def analyze():
         df_comment_index+=5 #ikinci array finishleyende +5 olmaidi
         if df_comment_index> df_size:
                 break
+    for result in positive_entities:
+        for link in result:
+            print(link)
+            if not G.has_node(link):
+                G.add_node(link)
+             
     pos = nx.spring_layout(G)
     st.session_state.graph_pos, st.session_state.pos_pos =G,pos
     #nx.draw(G,pos, with_labels=True,node_color='white',  font_size=10, bbox=dict(boxstyle="round,pad=0.3", alpha=0.5))
@@ -461,9 +475,9 @@ def analyze():
                     break
                 
                 if indexxx < neutural_pos[i][j] < indexxx+int(neutural_comments.iloc[x, neutural_comments.columns.get_loc("Size")]):
-                    print(neutural_entities[i][j]) #entitiy
+                    #print(neutural_entities[i][j]) #entitiy
                     #print(negative_comments.iloc[x, negative_comments.columns.get_loc("Comment")]) #comment
-                    print(x) # comment loc
+                    #print(x) # comment loc
                     if last_comment ==x and last_comment!=0:
                         G.add_edge(neutural_entities[i][j-1],neutural_entities[i][j]) 
                     else:
@@ -471,7 +485,7 @@ def analyze():
 
 
                     last_comment = x 
-                    
+                 
                 indexxx += int(neutural_comments.iloc[x, neutural_comments.columns.get_loc("Size")])
                 #print(indexxx)
 
@@ -479,12 +493,22 @@ def analyze():
         df_comment_index+=5 #ikinci array finishleyende +5 olmaidi
         if df_comment_index> df_size:
                 break
+    for result in neutural_entities:
+        for link in result:
+            print(link)
+            if not G.has_node(link):
+                G.add_node(link)
+              
     pos = nx.spring_layout(G)
     st.session_state.graph_neu, st.session_state.neu_pos =G,pos
 
     st.session_state.positive_entities = positive_entities
     st.session_state.negative_entities = negative_entities 
     st.session_state.neutural_entities  = neutural_entities
+
+   
+
+
     update.text("👍 Done")
     vectorizer = TfidfVectorizer(stop_words='english')
     X = vectorizer.fit_transform(comments_df['Comment'])
@@ -606,8 +630,7 @@ if st.session_state.graph_neu:
 if st.session_state.wordcloud_image and len(st.session_state.wordcloud_image)>0:
     st.subheader("Word Clouds")
     selected_image_path = st.selectbox("Select an Image", st.session_state.wordcloud_image)
-    print(st.session_state.wordcloud_image)
-    # Streamlit UI
+
     st.subheader("KMeans Clustering Analysis")
 
     image_container = st.empty()
@@ -620,7 +643,6 @@ def make_clickable(entity):
 
 
 if len(st.session_state.positive_entities) > 0 :
-    neg_list  = []
     pos_list  = []
     for result in st.session_state.positive_entities:
         for link in result:
