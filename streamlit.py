@@ -30,18 +30,24 @@ youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=youtube_
 
 
 
-def search_youtube(query, max_results=30):
-    
+def search_youtube(query, max_results):
     try:
-       
         search_response = youtube.search().list(
             q=query,
             type="video",
             part="id,snippet",
             maxResults=max_results,
-            eventType="completed"
+            order="relevance",
+            regionCode="US",
+            relevanceLanguage="en"
         ).execute()
-        st.session_state.videos = search_response.get("items", [])
+
+        videos = search_response.get("items", [])
+
+        # Exclude live videos
+        completed_videos = [video for video in videos if 'liveBroadcastContent' in video['snippet'] and video['snippet']['liveBroadcastContent'] == 'none']
+
+        st.session_state.videos = completed_videos
 
     except googleapiclient.errors.HttpError as e:
         print(f"YouTube API error occurred: {e}")
@@ -169,6 +175,7 @@ def sna(G):
 
 st.title("Text Analysis App")
 query = st.text_input("Enter YouTube search query:")
+max_video_num = st.number_input("Enter the maximum number of video:", min_value=1, max_value=100, step=1)
 
 search = st.button("Search videos!")
 
@@ -212,7 +219,7 @@ with st.spinner("Search... :mag:"):
     if search:
         if len(st.session_state.id)>0:
             st.session_state.id = []
-        search_youtube(query)
+        search_youtube(query , max_video_num)
 
 
 
@@ -226,7 +233,7 @@ if len(st.session_state.videos)>0:
          checkbox_key = f"checkbox_{video_id}"
          
          # Check the current state of the checkbox
-         is_checked = st.checkbox(f"{video_title}\n{video_description}", key=checkbox_key)
+         is_checked = st.checkbox(f"**{video_title}**\n\n{video_description}", key=checkbox_key)
          
          # Check if the checkbox was previously checked but is now unchecked
          was_checked = video_id in st.session_state.id
