@@ -223,30 +223,43 @@ with st.spinner("Search... :mag:"):
 
 
 
-if len(st.session_state.videos)>0:
-     
-    for video in st.session_state.videos:
-         video_id = video['id']['videoId']
-         video_title = video['snippet']['title']
-         video_description = video['snippet']['description']
-         # Display video information and checkbox
-         checkbox_key = f"checkbox_{video_id}"
-         
-         # Check the current state of the checkbox
-         is_checked = st.checkbox(f"**{video_title}**\n\n{video_description}", key=checkbox_key)
-         
-         # Check if the checkbox was previously checked but is now unchecked
-         was_checked = video_id in st.session_state.id
-         if was_checked and not is_checked:
-             # Remove video ID from the array
-             st.session_state.id.remove(video_id)
-         elif is_checked and not was_checked:
-             # If checkbox is checked, add video ID to the array
-             st.session_state.id.append(video_id)
+if len(st.session_state.videos) > 0:
+    with st.expander("Video results!"):
+        for video in st.session_state.videos:
+            video_id = video['id']['videoId']
+            video_title = video['snippet']['title']
+            video_description = video['snippet']['description']
+            video_thumbnail = video['snippet']['thumbnails']['default']['url']
+            channel_name = video['snippet']['channelTitle']
 
+            # Create two columns layout
+            col1, col2 = st.columns(2)
 
-        # Display selected video IDs
+            # Column 1: Display checkbox
+            checkbox_key = f"checkbox_{video_id}"
+            is_checked = col2.checkbox(f"**{video_title}**\n\n{video_description}\n\nChannel: {channel_name}", key=checkbox_key)
+
+            # Check if the checkbox was previously checked but is now unchecked
+            was_checked = video_id in st.session_state.id
+            if was_checked and not is_checked:
+                # Remove video ID from the array
+                st.session_state.id.remove(video_id)
+            elif is_checked and not was_checked:
+                # If checkbox is checked, add video ID to the array
+                st.session_state.id.append(video_id)
+
+            # Column 2: Display thumbnail and link
+            col1.image(video_thumbnail, width=240)
+            video_link = f"https://www.youtube.com/watch?v={video_id}"
+            col1.markdown(f"[Watch Video]({video_link})")
+
+    # Display selected video IDs
     st.write('Selected Video IDs:', st.session_state.id)
+
+
+
+
+
 
 
 
