@@ -30,6 +30,42 @@ youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=youtube_
 
 
 
+if 'wordcloud_image' not in st.session_state:
+        # If not, initialize it
+        st.session_state.wordcloud_image = []
+if 'negative_entities' not in st.session_state:
+        # If not, initialize it
+        st.session_state.negative_entities = []
+if 'positive_entities' not in st.session_state:
+        # If not, initialize it
+        st.session_state.positive_entities = []
+if 'neutural_entities' not in st.session_state:
+        # If not, initialize it
+        st.session_state.neutural_entities = []
+if 'sentiment' not in st.session_state:
+        # If not, initialize it
+        st.session_state.sentiment = ''
+if 'graph_pos' not in st.session_state:
+        # If not, initialize it
+        st.session_state.graph_pos = None
+if 'graph_neg' not in st.session_state:
+        # If not, initialize it
+        st.session_state.graph_neg = None
+if 'graph_neu' not in st.session_state:
+        # If not, initialize it
+        st.session_state.graph_neu = None
+if 'pos' not in st.session_state:
+        # If not, create an empty placeholder
+        st.session_state.pos_pos, st.session_state.neg_pos   ,  st.session_state.neu_pos = None, None, None
+if 'videos' not in st.session_state:    
+    st.session_state.videos = []
+if 'id' not in st.session_state:
+    st.session_state.id = []
+
+
+
+
+
 def search_youtube(query, max_results):
     try:
         search_response = youtube.search().list(
@@ -67,6 +103,8 @@ def get_video_comments(video_id, max_results):
         # Extract comments from the response
         comments = [item["snippet"]["topLevelComment"]["snippet"]["textDisplay"] for item in
                     comment_response.get("items", [])]
+        #Exclude short comments
+        comments[:] = [comment_data for comment_data in comments if len(comment_data) >= 15]
 
         return comments
 
@@ -108,7 +146,7 @@ def tagme_entity_linking(text):
         if "annotations" in result:
             for annotation in result["annotations"]:
                 # Check for the existence of 'title' in the annotation
-                if "title" in annotation and annotation["link_probability"]>0.3 and annotation["rho"]>0.2:
+                if "title" in annotation and annotation["link_probability"]>0.15 and annotation["rho"]>0.3:
                     entities.append(annotation["title"])
                     entity_pos.append(annotation["start"])
 
@@ -124,6 +162,16 @@ def tagme_entity_linking(text):
     except json.decoder.JSONDecodeError as e:
         print(f"Error decoding TagMe API JSON: {e}")
         return []
+
+
+
+
+
+
+
+
+
+
 
 # Function for sentiment analysis
 def analyze_sentiment(comment):
@@ -193,37 +241,6 @@ with st.expander("Enter custom video you want!"):
 
 
 
-if 'wordcloud_image' not in st.session_state:
-        # If not, initialize it
-        st.session_state.wordcloud_image = []
-if 'negative_entities' not in st.session_state:
-        # If not, initialize it
-        st.session_state.negative_entities = []
-if 'positive_entities' not in st.session_state:
-        # If not, initialize it
-        st.session_state.positive_entities = []
-if 'neutural_entities' not in st.session_state:
-        # If not, initialize it
-        st.session_state.neutural_entities = []
-if 'sentiment' not in st.session_state:
-        # If not, initialize it
-        st.session_state.sentiment = ''
-if 'graph_pos' not in st.session_state:
-        # If not, initialize it
-        st.session_state.graph_pos = None
-if 'graph_neg' not in st.session_state:
-        # If not, initialize it
-        st.session_state.graph_neg = None
-if 'graph_neu' not in st.session_state:
-        # If not, initialize it
-        st.session_state.graph_neu = None
-if 'pos' not in st.session_state:
-        # If not, create an empty placeholder
-        st.session_state.pos_pos, st.session_state.neg_pos   ,  st.session_state.neu_pos = None, None, None
-if 'videos' not in st.session_state:    
-    st.session_state.videos = []
-if 'id' not in st.session_state:
-    st.session_state.id = []
 
 
 
