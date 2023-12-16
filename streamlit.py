@@ -178,6 +178,20 @@ query = st.text_input("Enter YouTube search query:")
 max_video_num = st.number_input("Enter the maximum number of video:", min_value=1, max_value=100, step=1)
 
 search = st.button("Search videos!")
+with st.expander("Enter custom video you want!"):
+    
+    user_video = st.text_input("Enter YouTube video link:")
+    add_custom_video = st.button("Add this video!")
+
+    if add_custom_video:
+            index = user_video.find('v=')
+
+            if index != -1:
+                # Extract the 11 characters after 'v='
+                video_id = user_video[index + 2:index + 13]
+                st.session_state.id.append(video_id)
+
+
 
 if 'wordcloud_image' not in st.session_state:
         # If not, initialize it
@@ -254,7 +268,7 @@ if len(st.session_state.videos) > 0:
             col1.markdown(f"[Watch Video]({video_link})")
 
     # Display selected video IDs
-    st.write('Selected Video IDs:', st.session_state.id)
+st.write('Selected Video IDs:', st.session_state.id)
 
 
 
@@ -587,7 +601,7 @@ def analyze():
 
 
 
-if  len(st.session_state.videos)>0:
+if  len(st.session_state.id)>0:
     max_commen_result = st.number_input("Enter the maximum number of comments for each video:", min_value=50, max_value=500, step=1)
 
     button_pressed = st.button("Start Analysis")
