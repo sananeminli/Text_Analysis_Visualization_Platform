@@ -195,7 +195,7 @@ def accepted_entites(titles):
             if page.exists():
                 categories = page.categories.keys() 
                 if categories:
-                    found = any(("book" in element) or ("movie" in element) or ("music" in element) or ("album" in element) or ("film" in element) or ("song" in element) for element in categories)
+                    found = any(("book" in element) or ("movie" in element) or ("music" in element) or ("album" in element) or ("film" in element) or ("song" in element) or ("television series" in element) for element in categories)
                     if not found:
                         accepted_list.append(title)
                     else:
@@ -291,7 +291,7 @@ def generate_network_graph(G):
 st.title("Text Analysis App")
 with st.expander("Aknowledgements"):
     
-    st.write("We will collect comments that have more than 15 characters and are written in English. Additionally, during the analysis, entities such as book names, song names, and film names will be excluded.")
+    st.write("We will collect comments that have more than 15 characters and are written in English. Additionally, during the analysis, entities such as book names, song names, television series and film names will be excluded.")
 
 
 query = st.text_input("Enter YouTube search query:")
@@ -466,7 +466,20 @@ def analyze():
     st.write(f"{st.session_state.sentence_number} sentence is used.")
     st.write(f"{st.session_state.comment_number} comments is used.")
 
-if st.session_state.bar_positive > 0:
+
+
+
+if  len(st.session_state.id)>0:
+    max_commen_result = st.number_input("Enter the maximum number of comments for each video:", min_value=50, max_value=500, step=1)
+
+    button_pressed = st.button("Start Analysis")
+    with st.spinner("Analyzing... :mag:"):
+        if button_pressed:
+            analyze()
+
+
+
+if len(st.session_state.neutral_entities)>0 or len( st.session_state.negative_entities)>0  or len(st.session_state.positive_entities)>0:
     st.title('Sentiment Analysis')
 
     # Define the chart data
@@ -495,25 +508,8 @@ if st.session_state.bar_positive > 0:
 
 
 
-if  len(st.session_state.id)>0:
-    max_commen_result = st.number_input("Enter the maximum number of comments for each video:", min_value=50, max_value=500, step=1)
-
-    button_pressed = st.button("Start Analysis")
-    with st.spinner("Analyzing... :mag:"):
-        if button_pressed:
-            analyze()
-
-
-
-
-
-
     
         
-
-if st.session_state.sentiment =='sentiment.png':
-    st.subheader("📊 Distrubition of comment sentiment")
-    st.image(st.session_state.sentiment , caption='Distrubition of comments')
 
 
 
