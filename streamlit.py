@@ -13,16 +13,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 import networkx as nx
-import mpld3
-import streamlit.components.v1 as components
 from itertools import combinations
 import nltk
 nltk.download('punkt')  # Download the punkt tokenizer data
 import wikipediaapi
 import graphviz
-from PIL import Image
-
-
 from nltk.tokenize import sent_tokenize
 
 
@@ -294,6 +289,11 @@ def generate_network_graph(G):
      
 
 st.title("Text Analysis App")
+with st.expander("Aknowledgements"):
+    
+    st.write("We will collect comments that have more than 15 characters and are written in English. Additionally, during the analysis, entities such as book names, song names, and film names will be excluded.")
+
+
 query = st.text_input("Enter YouTube search query:")
 max_video_num = st.number_input("Enter the maximum number of video:", min_value=1, max_value=100, step=1)
 
@@ -323,6 +323,12 @@ with st.spinner("Search... :mag:"):
         if len(st.session_state.id)>0:
             st.session_state.id = []
         search_youtube(query , max_video_num)
+
+
+
+
+
+
 
 
 
@@ -396,7 +402,7 @@ def analyze():
            
                 
            
-    update.text(" Getting entity links!")
+    update.text("🔗 Getting entity links!..")
     comments_df = pd.DataFrame(all_comments_data)
 
     # Count the number of positive and negative comments
@@ -418,7 +424,7 @@ def analyze():
     for index, row in neutral_comments.iterrows():
         comment_text = row['Comment']
         link_entities_and_create_graph(comment_text,0)
-    
+    update.text("💢 Clustering comments... ")
     vectorizer = TfidfVectorizer(stop_words='english')
     X = vectorizer.fit_transform(comments_df['Comment'])
     silhouette_scores = []
@@ -509,8 +515,24 @@ if st.session_state.sentiment =='sentiment.png':
     st.subheader("📊 Distrubition of comment sentiment")
     st.image(st.session_state.sentiment , caption='Distrubition of comments')
 
+
+
+
+if st.session_state.graph_pos:
+    st.subheader("📌Entity Relations in  Positive Sentences")
+    svg_content = generate_network_graph(st.session_state.graph_pos )
+    st.image(svg_content)
+
+    posi_df = sna(st.session_state.graph_pos)
+    
+    with st.expander("SNA"):
+        st.dataframe(posi_df)
+
+
+
+
 if st.session_state.graph_neg:
-    st.subheader("📌 Negative Entity Relations")
+    st.subheader("📌 Entity Relations in Negative Sentences")
     svg_content = generate_network_graph(st.session_state.graph_neg)
     st.image(svg_content)
     nega_df = sna(st.session_state.graph_neg)
@@ -521,19 +543,9 @@ if st.session_state.graph_neg:
 
 
 
-if st.session_state.graph_pos:
-    st.subheader("📌 Positive Entity Relations")
-    svg_content = generate_network_graph(st.session_state.graph_pos )
-    st.image(svg_content)
-
-    posi_df = sna(st.session_state.graph_pos)
-    
-    with st.expander("SNA"):
-        st.dataframe(posi_df)
-
 
 if st.session_state.graph_neu:
-    st.subheader("📌 Neutural Entity Relations")
+    st.subheader("📌 Entity Relations in Neutural Sentences")
     svg_content = generate_network_graph(st.session_state.graph_neu )
     st.image(svg_content) 
     neut_df = sna(st.session_state.graph_neu)
@@ -622,13 +634,13 @@ if len(st.session_state.neutral_entities) > 0 :
 
 if len(st.session_state.neutral_entities)>0 or len( st.session_state.negative_entities)>0  or len(st.session_state.positive_entities)>0:
         
-    with st.expander("Positive entites"):
+    with st.expander("Entities  in  Positive Sentences"):
         if len( st.session_state.positive_entities)>0:
             st.write(df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
-    with st.expander("Negative entites"):
+    with st.expander("Entities in Negative Sentences"):
         if len( st.session_state.negative_entities)>0:
             st.write(neg_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
-    with st.expander("Neutral entites"):
+    with st.expander("Entities in Neutural Sentences"):
         if len( st.session_state.neutral_entities)>0:
             st.write(neu_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
     with st.expander("All entites"):
