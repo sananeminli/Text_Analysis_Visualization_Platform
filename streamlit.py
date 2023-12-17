@@ -15,6 +15,12 @@ from sklearn.metrics import silhouette_score
 import networkx as nx
 import mpld3
 import streamlit.components.v1 as components
+from itertools import combinations
+import nltk
+nltk.download('punkt')  # Download the punkt tokenizer data
+import wikipediaapi
+
+from nltk.tokenize import sent_tokenize
 
 
 
@@ -39,21 +45,21 @@ if 'negative_entities' not in st.session_state:
 if 'positive_entities' not in st.session_state:
         # If not, initialize it
         st.session_state.positive_entities = []
-if 'neutural_entities' not in st.session_state:
+if 'neutral_entities' not in st.session_state:
         # If not, initialize it
-        st.session_state.neutural_entities = []
+        st.session_state.neutral_entities = []
 if 'sentiment' not in st.session_state:
         # If not, initialize it
         st.session_state.sentiment = ''
 if 'graph_pos' not in st.session_state:
         # If not, initialize it
-        st.session_state.graph_pos = None
+        st.session_state.graph_pos =  nx.Graph()
 if 'graph_neg' not in st.session_state:
         # If not, initialize it
-        st.session_state.graph_neg = None
+        st.session_state.graph_neg = nx.Graph()
 if 'graph_neu' not in st.session_state:
         # If not, initialize it
-        st.session_state.graph_neu = None
+        st.session_state.graph_neu =  nx.Graph()
 if 'pos' not in st.session_state:
         # If not, create an empty placeholder
         st.session_state.pos_pos, st.session_state.neg_pos   ,  st.session_state.neu_pos = None, None, None
@@ -61,7 +67,10 @@ if 'videos' not in st.session_state:
     st.session_state.videos = []
 if 'id' not in st.session_state:
     st.session_state.id = []
-
+if 'comment_number' not in st.session_state:
+    st.session_state.comment_number = 0 
+if 'sentence_number' not in st.session_state:
+    st.session_state.sentence_number = 0 
 
 
 
@@ -105,7 +114,11 @@ def get_video_comments(video_id, max_results):
                     comment_response.get("items", [])]
         #Exclude short comments
         comments[:] = [comment_data for comment_data in comments if len(comment_data) >= 15]
+        print(comments)
+            
+        #comments[:] = [comment_data for comment_data in comments if comment_data and detect(comment_data) == 'en']
 
+        st.session_state.comment_number +=len(comments)
         return comments
 
     except googleapiclient.errors.HttpError as e:
@@ -150,7 +163,7 @@ def tagme_entity_linking(text):
                     entities.append(annotation["title"])
                     entity_pos.append(annotation["start"])
 
-        return entities , entity_pos
+        return entities
 
     except requests.exceptions.HTTPError as e:
         print(f"TagMe API HTTP error occurred: {e}")
@@ -168,6 +181,26 @@ def tagme_entity_linking(text):
 
 
 
+wiki_wiki = wikipediaapi.Wikipedia('en', extract_format=wikipediaapi.ExtractFormat.WIKI, headers={'User-Agent': 'Your-User-Agent-Name/1.0 (senkaam2@gmail.com)'})
+
+def accepted_entites(titles):
+    
+    accepted_list = []
+    if len(titles)>0:
+        for index, title in enumerate(titles):
+            
+            page = wiki_wiki.page(title)
+            
+            if page.exists():
+                categories = page.categories.keys() 
+                if categories:
+                    found = any(("book" in element) or ("movie" in element) or ("music" in element) or ("album" in element)or ("film" in element) for element in categories)
+                    if not found:
+                        accepted_list.append(title)
+                    else:
+                        print(title)
+                        print(categories)
+    return accepted_list
 
 
 
@@ -186,13 +219,40 @@ def detect_language(comment):
         return None
     
 
-def link_entities(comment):
-    entities = tagme_entity_linking(comment)
-    return entities
-
-
-def generate_network_graph(G , pos):
-
+def link_entities_and_create_graph(comment, sentiment):
+    sentences = sent_tokenize(comment)
+    st.session_state.sentence_number +=len(sentences)
+    for sentence in sentences:
+            entities = tagme_entity_linking(sentence)
+            final_entities = accepted_entites(entities)
+            add_edges_nodes(final_entities, sentiment)
+    
+def add_edges_nodes(nodes , sentiment):
+    
+    if sentiment==1 :
+        st.session_state.positive_entities+=nodes
+        st.session_state.graph_pos.add_nodes_from(nodes)
+        if len(nodes) > 1:
+            for edge_pair in combinations(nodes, 2):
+                st.session_state.graph_pos.add_edge(*edge_pair)
+    elif  sentiment == -1 :
+        st.session_state.negative_entities += nodes
+        st.session_state.graph_neg.add_nodes_from(nodes)
+        print(nodes)
+        print(len(nodes))
+        if len(nodes)>1:
+            for edge_pair in combinations(nodes, 2):
+                st.session_state.graph_neg.add_edge(*edge_pair)
+    elif sentiment==0:
+        st.session_state.neutral_entities += nodes
+        st.session_state.graph_neu.add_nodes_from(nodes)
+      
+        if len(nodes)>1:
+            for edge_pair in combinations(nodes, 2):
+                st.session_state.graph_neu.add_edge(*edge_pair)
+        
+def generate_network_graph(G):
+    pos =  nx.spring_layout(G)
     fig, ax = plt.subplots(figsize=(20,5)) 
     nx.draw(G,pos, with_labels=True,node_color='white',  font_size=10, bbox=dict(boxstyle="round,pad=0.3", alpha=0.5))
     # Use mpld3 to save the figure as HTML
@@ -306,250 +366,49 @@ def analyze():
             os.remove(path)
     video_ids = st.session_state.id
     wordcloud_images = []
-    all_comments_data = {'Comment': [], 'Polarity': [], 'Size': []}
+    all_comments_data = {'Comment': [], 'Polarity': []}
     update = st.empty()
     update.text("💭 Getting comments from videos...") 
     # Get comments for each of the first four videos
     for video_id in video_ids:
         comments = get_video_comments(video_id , max_commen_result)
         for comment in comments:
-            polarity = analyze_sentiment(comment)
-            # Detect the language of the comment
             language = detect_language(comment)
+            polarity = analyze_sentiment(comment)
+
             # If the polarity is not zero and the language is English, add the comment and polarity to the DataFrame
             if language == 'en':
                 all_comments_data['Comment'].append(comment)
                 all_comments_data['Polarity'].append(polarity)
-                all_comments_data['Size'].append(len(comment))
+                
+           
+                
            
     update.text("👍 Done")
-    df = pd.DataFrame(all_comments_data)
-
-# Specify the maximum length (400 in this case)
-    max_length = 500
-
-# Filter rows based on string length
-    comments_df = df[df['Comment'].str.len() <= max_length]
-    
-    step_size = 5 
+    comments_df = pd.DataFrame(all_comments_data)
 
     # Count the number of positive and negative comments
-    positive_comments = comments_df[comments_df['Polarity'] > 0]
-    negative_comments = comments_df[comments_df['Polarity'] < 0]
-    neutural_comments = comments_df[comments_df['Polarity'] == 0]
-    step_size = 10
-    array_of_negative_parts = []
-    array_of_positive_parts = []
-    array_of_neutural_parts = []
+    positive_comments = comments_df[comments_df['Polarity'] > 0.2]
+    negative_comments = comments_df[comments_df['Polarity'] < -0.2]
+    neutral_comments = comments_df[(comments_df['Polarity'] >= -0.2) & (comments_df['Polarity'] <= 0.2)]
 
-    update.text("📚 Doing sentiment analysis...")
-# Loop through the Negative Comments DataFrame in steps of 10
-# Loop through the Negative Comments DataFrame in steps of 10
-    for i in range(0, len(negative_comments), step_size):
+
+    for index, row in positive_comments.iterrows():
+        comment_text = row['Comment']
+        link_entities_and_create_graph(comment_text,1)
+
+    for index, row in negative_comments.iterrows():
+        comment_text = row['Comment']
+        link_entities_and_create_graph(comment_text,-1)
+        
+    for index, row in neutral_comments.iterrows():
+        comment_text = row['Comment']
+        link_entities_and_create_graph(comment_text,0)
     
-        df_part = negative_comments.iloc[i:i + step_size]
+    update.text("📚 entities linked")
+  
 
-        concatenated_string = '.'.join(df_part['Comment'])
-
-        #son = concatenated_string.replace('\n', '')
-        #son_str  = re.sub(r'[^a-zA-Z0-9\s.,!?]', '', son)
-        # Append the result to the list
-
-        array_of_negative_parts.append(concatenated_string)
-    update.text("👍 Done")
-    # Loop through the Positive Comments DataFrame in steps of 10
-    for i in range(0, len(positive_comments), step_size):
-    
-        df_part = positive_comments.iloc[i:i + step_size]
-
-        concatenated_string = '.'.join(df_part['Comment'])
-
-        #son = concatenated_string.replace('\n', '')
-        #son_str  = re.sub(r'[^a-zA-Z0-9\s.,!?]', '', son)
-
-        # Append the result to the list
-        array_of_positive_parts.append(concatenated_string)
-    
-    
-    for i in range(0, len(neutural_comments), step_size):
-    
-        df_part = neutural_comments.iloc[i:i + step_size]
-
-        concatenated_string = '.'.join(df_part['Comment'])
-
-        #son = concatenated_string.replace('\n', '')
-        #son_str  = re.sub(r'[^a-zA-Z0-9\s.,!?]', '', son)
-
-        # Append the result to the list
-        array_of_neutural_parts.append(concatenated_string)
-
-
-    
-    negative_entities = []
-    negative_pos = []
-    positive_entities = []
-    positive_pos = []
-    neutural_entities = []
-    neutural_pos = []
-
-    update.text("🔗 Getting entity links...")
-    for i in range(0, len(array_of_negative_parts)): 
-        ent,  pos = tagme_entity_linking(array_of_negative_parts[i])
-        negative_entities.append(ent)
-        negative_pos.append(pos)
-
-    for i in range(0, len(array_of_positive_parts)): 
-        ent,  pos = tagme_entity_linking(array_of_positive_parts[i])
-        positive_entities.append(ent)
-        positive_pos.append(pos)
-    
-    for i in range(0, len(array_of_neutural_parts)): 
-        ent,  pos = tagme_entity_linking(array_of_neutural_parts[i])
-        neutural_entities.append(ent)
-        neutural_pos.append(pos)
-    
-    G = nx.Graph()
-    df_comment_index = 0
-    last_comment = 0
-    df_size = len(negative_comments)
-    for i in range(len(negative_pos)):
-        for j in range(len(negative_pos[i])):
-            if len(negative_pos[i])==0:
-                continue
-            indexxx = 0
-            for x in range(df_comment_index , df_comment_index+5):
-                if x==df_size:
-                    break
-                
-                if indexxx < negative_pos[i][j] < indexxx+int(negative_comments.iloc[x, negative_comments.columns.get_loc("Size")]):
-                    print(negative_entities[i][j]) #entitiy
-                    #print(negative_comments.iloc[x, negative_comments.columns.get_loc("Comment")]) #comment
-                    print(x) # comment loc
-                    if last_comment ==x and last_comment!=0:
-                        G.add_edge(negative_entities[i][j-1],negative_entities[i][j]) 
-                    else:
-                        G.add_node(negative_entities[i][j])
-
-
-                    last_comment = x 
-                if not G.has_node(negative_entities[i][j]):
-                    G.add_node(negative_entities[i][j]) 
-                indexxx += int(negative_comments.iloc[x, negative_comments.columns.get_loc("Size")])
-                #print(indexxx)
-
-            
-        df_comment_index+=5 #ikinci array finishleyende +5 olmaidi
-        if df_comment_index> df_size:
-                break
-    for result in negative_entities:
-        for link in result:
-            print(link)
-            if not G.has_node(link):
-                G.add_node(link)
-                
-    pos = nx.spring_layout(G)
-
-    #nx.draw(G,pos, with_labels=True,node_color='white',  font_size=10, bbox=dict(boxstyle="round,pad=0.3", alpha=0.5))
-    st.session_state.graph_neg, st.session_state.pos_neg =G,pos
-
-    #plt.savefig("graph_neg.png", format="png", dpi=300)
-    #st.session_state.graph_neg = "graph_neg.png"
-
-
-
-
-
-
-    G = nx.Graph()
-    df_comment_index = 0
-    last_comment = 0
-    df_size = len(positive_comments)
-    for i in range(len(positive_pos)):
-        for j in range(len(positive_pos[i])):
-            if len(positive_pos[i])==0:
-                continue
-            indexxx = 0
-            for x in range(df_comment_index , df_comment_index+5):
-                if x==df_size:
-                    break
-                
-                if indexxx < positive_pos[i][j] < indexxx+int(positive_comments.iloc[x, positive_comments.columns.get_loc("Size")]):
-                    print(positive_entities[i][j]) #entitiy
-                    #print(negative_comments.iloc[x, negative_comments.columns.get_loc("Comment")]) #comment
-                    print(x) # comment loc
-                    if last_comment ==x and last_comment!=0:
-                        G.add_edge(positive_entities[i][j-1],positive_entities[i][j]) 
-                    else:
-                        G.add_node(positive_entities[i][j])
-
-
-                    last_comment = x 
-                if not G.has_node(positive_entities[i][j]):
-                    G.add_node(positive_entities[i][j])    
-                indexxx += int(positive_comments.iloc[x, positive_comments.columns.get_loc("Size")])
-                #print(indexxx)
-
-            
-        df_comment_index+=5 #ikinci array finishleyende +5 olmaidi
-        if df_comment_index> df_size:
-                break
-    for result in positive_entities:
-        for link in result:
-            print(link)
-            if not G.has_node(link):
-                G.add_node(link)
-             
-    pos = nx.spring_layout(G)
-    st.session_state.graph_pos, st.session_state.pos_pos =G,pos
-    #nx.draw(G,pos, with_labels=True,node_color='white',  font_size=10, bbox=dict(boxstyle="round,pad=0.3", alpha=0.5))
-    #plt.savefig("graph_pos.png", format="png", dpi=300)
-    #st.session_state.graph_pos = "graph_pos.png"
-
-    G = nx.Graph()
-    df_comment_index = 0
-    last_comment = 0
-    df_size = len(neutural_comments)
-    for i in range(len(neutural_pos)):
-        for j in range(len(neutural_pos[i])):
-            if len(neutural_pos[i])==0:
-                continue
-            indexxx = 0
-            for x in range(df_comment_index , df_comment_index+5):
-                if x==df_size:
-                    break
-                
-                if indexxx < neutural_pos[i][j] < indexxx+int(neutural_comments.iloc[x, neutural_comments.columns.get_loc("Size")]):
-                    #print(neutural_entities[i][j]) #entitiy
-                    #print(negative_comments.iloc[x, negative_comments.columns.get_loc("Comment")]) #comment
-                    #print(x) # comment loc
-                    if last_comment ==x and last_comment!=0:
-                        G.add_edge(neutural_entities[i][j-1],neutural_entities[i][j]) 
-                    else:
-                        G.add_node(neutural_entities[i][j])
-
-
-                    last_comment = x 
-                 
-                indexxx += int(neutural_comments.iloc[x, neutural_comments.columns.get_loc("Size")])
-                #print(indexxx)
-
-            
-        df_comment_index+=5 #ikinci array finishleyende +5 olmaidi
-        if df_comment_index> df_size:
-                break
-    for result in neutural_entities:
-        for link in result:
-            print(link)
-            if not G.has_node(link):
-                G.add_node(link)
-              
-    pos = nx.spring_layout(G)
-    st.session_state.graph_neu, st.session_state.neu_pos =G,pos
-
-    st.session_state.positive_entities = positive_entities
-    st.session_state.negative_entities = negative_entities 
-    st.session_state.neutural_entities  = neutural_entities
-
+  
    
 
 
@@ -594,23 +453,14 @@ def analyze():
     plt.tight_layout()
     plt.savefig('sentiment.png')
     st.session_state.sentiment = 'sentiment.png'
-    negative_entities_for_word_cloud = " ".join(array_of_negative_parts)
-    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(negative_entities_for_word_cloud)
-    # WordCloud 
-    plt.figure(figsize=(10, 5))
-    plt.imshow(wordcloud, interpolation='bilinear')
-    plt.axis('off')
-    plt.title('Negative Entities')
+  
     
-    positive_entities_for_word_cloud = " ".join(array_of_positive_parts)
-    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(positive_entities_for_word_cloud)
-    # WordCloud 
-    plt.figure(figsize=(10, 5))
-    plt.imshow(wordcloud, interpolation='bilinear')
-    plt.axis('off')
-    plt.title('Positive Entities')
+ 
     update.empty()
     st.success("Analysis completed! :ok_hand:")
+    st.write(f"{st.session_state.sentence_number} sentence is used.")
+    st.write(f"{st.session_state.comment_number} comments is used.")
+
 
 
 
@@ -640,34 +490,34 @@ if st.session_state.sentiment =='sentiment.png':
 
 if st.session_state.graph_neg:
     st.subheader("📌 Negative Entity Relations")
-    graph_html = generate_network_graph(st.session_state.graph_neg , st.session_state.neg_pos)
+    graph_html = generate_network_graph(st.session_state.graph_neg)
     st.components.v1.html(graph_html, width=800, height=600)
-    df = sna(st.session_state.graph_neg)
+    nega_df = sna(st.session_state.graph_neg)
 
     with st.expander("SNA"):
-        st.dataframe(df)
+        st.dataframe(nega_df)
 
 
 
 
 if st.session_state.graph_pos:
     st.subheader("📌 Positive Entity Relations")
-    graph_html = generate_network_graph(st.session_state.graph_pos , st.session_state.pos_pos)
+    graph_html = generate_network_graph(st.session_state.graph_pos )
     st.components.v1.html(graph_html, width=800, height=520)
-    df = sna(st.session_state.graph_pos)
+    posi_df = sna(st.session_state.graph_pos)
     
     with st.expander("SNA"):
-        st.dataframe(df)
+        st.dataframe(posi_df)
 
 
 if st.session_state.graph_neu:
     st.subheader("📌 Neutural Entity Relations")
-    graph_html = generate_network_graph(st.session_state.graph_neu , st.session_state.neu_pos)
+    graph_html = generate_network_graph(st.session_state.graph_neu )
     st.components.v1.html(graph_html, width=800, height=520)
-    df = sna(st.session_state.graph_neu)
+    neut_df = sna(st.session_state.graph_neu)
     
     with st.expander("SNA"):
-        st.dataframe(df)
+        st.dataframe(neut_df)
 
 
 
@@ -688,8 +538,11 @@ def make_clickable(entity):
 
 if len(st.session_state.positive_entities) > 0 :
     pos_list  = []
-    for result in st.session_state.positive_entities:
-        for link in result:
+    print(st.session_state.positive_entities)
+    for link in st.session_state.positive_entities:
+            if len(link)==0:
+                continue
+        
             title = link
             link = link.replace(" ", "_")
 
@@ -707,8 +560,8 @@ if len(st.session_state.positive_entities) > 0 :
 
 if len(st.session_state.negative_entities) > 0:
     neg_list  = []
-    for result in st.session_state.negative_entities:
-        for link in result:
+    for link in st.session_state.negative_entities:
+        if len(link)>0:
             title = link
             link = link.replace(" ", "_")
             neg_list.append(link)
@@ -721,14 +574,15 @@ if len(st.session_state.negative_entities) > 0:
     neg_df['Entity'] = neg_df['Entity'].apply(make_clickable)
 
 
-if len(st.session_state.neutural_entities) > 0 :
+if len(st.session_state.neutral_entities) > 0 :
 
     
 
     neu_list  = []
-
-    for result in st.session_state.neutural_entities:
-        for link in result:
+    print(st.session_state.neutral_entities)
+    for link in st.session_state.neutral_entities:
+        
+        if len(link)>0:
             title = link
             link = link.replace(" ", "_")
 
@@ -744,23 +598,21 @@ if len(st.session_state.neutural_entities) > 0 :
 # Display the DataFrame with clickable Wikipedia links
 
 
-if len(st.session_state.neutural_entities)>0 or len( st.session_state.negative_entities)>0  or len(st.session_state.positive_entities)>0:
+if len(st.session_state.neutral_entities)>0 or len( st.session_state.negative_entities)>0  or len(st.session_state.positive_entities)>0:
         
     with st.expander("Positive entites"):
-        st.write(df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
+        if len( st.session_state.positive_entities)>0:
+            st.write(df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
     with st.expander("Negative entites"):
-        st.write(neg_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
+        if len( st.session_state.negative_entities)>0:
+            st.write(neg_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
     with st.expander("Neutral entites"):
-        st.write(neu_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
+        if len( st.session_state.neutral_entities)>0:
+            st.write(neu_df.to_html(escape=False, render_links=True), unsafe_allow_html=True)
     with st.expander("All entites"):
         all_list = []
-        all_ent = st.session_state.neutural_entities + st.session_state.negative_entities + st.session_state.positive_entities
-        for result in all_ent:
-            for link in result:
-                title = link
-                link = link.replace(" ", "_")
+        all_list = st.session_state.neutral_entities + st.session_state.negative_entities + st.session_state.positive_entities
 
-                all_list.append(link)
         all_df = pd.DataFrame(all_list, columns=['Entity'])
         all_df['Frequency'] = all_df.groupby('Entity')['Entity'].transform('count')
         all_df = all_df.drop_duplicates(subset='Entity')
