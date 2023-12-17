@@ -19,6 +19,9 @@ from itertools import combinations
 import nltk
 nltk.download('punkt')  # Download the punkt tokenizer data
 import wikipediaapi
+import graphviz
+from PIL import Image
+
 
 from nltk.tokenize import sent_tokenize
 
@@ -71,9 +74,12 @@ if 'comment_number' not in st.session_state:
     st.session_state.comment_number = 0 
 if 'sentence_number' not in st.session_state:
     st.session_state.sentence_number = 0 
-
-
-
+if 'bar_positive' not in st.session_state:
+    st.session_state.bar_positive = 0 
+if 'bar_negative' not in st.session_state:
+    st.session_state.bar_negative = 0 
+if 'bar_neu' not in st.session_state:
+    st.session_state.bar_neu = 0 
 
 def search_youtube(query, max_results):
     try:
@@ -194,7 +200,7 @@ def accepted_entites(titles):
             if page.exists():
                 categories = page.categories.keys() 
                 if categories:
-                    found = any(("book" in element) or ("movie" in element) or ("music" in element) or ("album" in element)or ("film" in element) for element in categories)
+                    found = any(("book" in element) or ("movie" in element) or ("music" in element) or ("album" in element) or ("film" in element) or ("song" in element) for element in categories)
                     if not found:
                         accepted_list.append(title)
                     else:
@@ -251,14 +257,7 @@ def add_edges_nodes(nodes , sentiment):
             for edge_pair in combinations(nodes, 2):
                 st.session_state.graph_neu.add_edge(*edge_pair)
         
-def generate_network_graph(G):
-    pos =  nx.spring_layout(G)
-    fig, ax = plt.subplots(figsize=(20,5)) 
-    nx.draw(G,pos, with_labels=True,node_color='white',  font_size=10, bbox=dict(boxstyle="round,pad=0.3", alpha=0.5))
-    # Use mpld3 to save the figure as HTML
-    html_content = mpld3.fig_to_html(fig)
-    #mpld3.show(fig=fig, ip='127.0.0.1', port=8888, n_retries=50, local=True, open_browser=True, http_server=None)  
-    return html_content
+
 
 def sna(G):
     degree_centrality = nx.degree_centrality(G  )
@@ -276,7 +275,20 @@ def sna(G):
 
 
 
+def generate_network_graph(G):
+    # Convert the NetworkX graph to a PyDot graph
+    pydot_graph = nx.drawing.nx_pydot.to_pydot(G)
+    # Specify the layout algorithm (e.g., 'neato') in PyDot
+    pydot_graph.set("layout", "circo")
+   
 
+    # Convert the PyDot graph to a Graphviz graph
+    graphviz_graph = graphviz.Source(pydot_graph.to_string())
+
+    # Get the SVG content as a string
+    svg_content = graphviz_graph.pipe(format='svg').decode('utf-8')
+
+    return svg_content
 
 
      
@@ -384,14 +396,16 @@ def analyze():
            
                 
            
-    update.text("👍 Done")
+    update.text(" Getting entity links!")
     comments_df = pd.DataFrame(all_comments_data)
 
     # Count the number of positive and negative comments
     positive_comments = comments_df[comments_df['Polarity'] > 0.2]
     negative_comments = comments_df[comments_df['Polarity'] < -0.2]
     neutral_comments = comments_df[(comments_df['Polarity'] >= -0.2) & (comments_df['Polarity'] <= 0.2)]
-
+    st.session_state.bar_positive = len(positive_comments)
+    st.session_state.bar_negative =len(negative_comments)
+    st.session_state.bar_neu = len(neutral_comments)
 
     for index, row in positive_comments.iterrows():
         comment_text = row['Comment']
@@ -405,14 +419,6 @@ def analyze():
         comment_text = row['Comment']
         link_entities_and_create_graph(comment_text,0)
     
-    update.text("📚 entities linked")
-  
-
-  
-   
-
-
-    update.text("👍 Done")
     vectorizer = TfidfVectorizer(stop_words='english')
     X = vectorizer.fit_transform(comments_df['Comment'])
     silhouette_scores = []
@@ -445,14 +451,7 @@ def analyze():
         wordcloud_images.append(image_path)
     st.session_state.wordcloud_image = wordcloud_images
     
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-    ax1.bar(['Positive', 'Negative'], [len(positive_comments), len(negative_comments)])
-    ax1.set_ylabel('Number of Comments')
-    ax1.set_title('Distribution of Positive and Negative Comments')
-    fig.delaxes(ax2)
-    plt.tight_layout()
-    plt.savefig('sentiment.png')
-    st.session_state.sentiment = 'sentiment.png'
+ 
   
     
  
@@ -461,10 +460,32 @@ def analyze():
     st.write(f"{st.session_state.sentence_number} sentence is used.")
     st.write(f"{st.session_state.comment_number} comments is used.")
 
+if st.session_state.bar_positive > 0:
+    st.title('Sentiment Analysis')
 
+    # Define the chart data
+    chart_data = {'Positive': st.session_state.bar_positive, 'Negative': st.session_state.bar_negative}
 
+    # Create a Streamlit sidebar to adjust the bar width
+    # Omitted for brevity
 
+    # Create a bar chart using matplotlib
+    fig, ax = plt.subplots()
 
+    # Set colors based on positive/negative values
+    colors = ['green', 'red']  # Positive is green, Negative is red
+
+    # Specify the width of the bars
+    bar_width = 0.16
+
+    # Create bars with specified colors and width
+    bars = ax.bar(chart_data.keys(), chart_data.values(), color=colors, width=bar_width)
+
+    # Adjust the size of the figure
+    fig.set_size_inches(4, 3)  # Set the width and height of the figure in inches
+
+    # Display the bar chart using Streamlit
+    st.pyplot(fig)
 
 
 
@@ -490,8 +511,8 @@ if st.session_state.sentiment =='sentiment.png':
 
 if st.session_state.graph_neg:
     st.subheader("📌 Negative Entity Relations")
-    graph_html = generate_network_graph(st.session_state.graph_neg)
-    st.components.v1.html(graph_html, width=800, height=600)
+    svg_content = generate_network_graph(st.session_state.graph_neg)
+    st.image(svg_content)
     nega_df = sna(st.session_state.graph_neg)
 
     with st.expander("SNA"):
@@ -502,8 +523,9 @@ if st.session_state.graph_neg:
 
 if st.session_state.graph_pos:
     st.subheader("📌 Positive Entity Relations")
-    graph_html = generate_network_graph(st.session_state.graph_pos )
-    st.components.v1.html(graph_html, width=800, height=520)
+    svg_content = generate_network_graph(st.session_state.graph_pos )
+    st.image(svg_content)
+
     posi_df = sna(st.session_state.graph_pos)
     
     with st.expander("SNA"):
@@ -512,8 +534,8 @@ if st.session_state.graph_pos:
 
 if st.session_state.graph_neu:
     st.subheader("📌 Neutural Entity Relations")
-    graph_html = generate_network_graph(st.session_state.graph_neu )
-    st.components.v1.html(graph_html, width=800, height=520)
+    svg_content = generate_network_graph(st.session_state.graph_neu )
+    st.image(svg_content) 
     neut_df = sna(st.session_state.graph_neu)
     
     with st.expander("SNA"):
@@ -626,7 +648,5 @@ if len(st.session_state.neutral_entities)>0 or len( st.session_state.negative_en
 
 
 
-
-    
 
 
