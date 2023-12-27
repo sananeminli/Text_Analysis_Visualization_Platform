@@ -117,8 +117,6 @@ def get_video_comments(video_id, max_results):
         comments[:] = [comment_data for comment_data in comments if len(comment_data) >= 15]
         print(comments)
             
-        #comments[:] = [comment_data for comment_data in comments if comment_data and detect(comment_data) == 'en']
-
         st.session_state.comment_number +=len(comments)
         return comments
 
@@ -189,18 +187,21 @@ def accepted_entites(titles):
     accepted_list = []
     if len(titles)>0:
         for index, title in enumerate(titles):
-            
-            page = wiki_wiki.page(title)
-            
-            if page.exists():
-                categories = page.categories.keys() 
-                if categories:
-                    found = any(("book" in element) or ("movie" in element) or ("music" in element) or ("album" in element) or ("film" in element) or ("song" in element) or ("television series" in element) for element in categories)
-                    if not found:
-                        accepted_list.append(title)
-                    else:
-                        print(title)
-                        print(categories)
+            try:
+                page = wiki_wiki.page(title)
+                
+                if page.exists():
+                    categories = page.categories.keys() 
+                    if categories:
+                        found = any(("book" in element) or ("movie" in element) or ("music" in element) or ("album" in element) or ("film" in element) or ("song" in element) or ("television series" in element) for element in categories)
+                        if not found:
+                            accepted_list.append(title)
+                        else:
+                            print(title)
+                            print(categories)
+            except :
+                accepted_list.append(title)
+                print(title)
     return accepted_list
 
 
@@ -289,7 +290,7 @@ def generate_network_graph(G):
      
 
 st.title("Text Analysis App")
-with st.expander("Aknowledgements"):
+with st.expander("Acknowledgements"):
     
     st.write("We will collect comments that have more than 15 characters and are written in English. Additionally, during the analysis, entities such as book names, song names, television series and film names will be excluded.")
 
@@ -462,9 +463,7 @@ def analyze():
     
  
     update.empty()
-    st.success("Analysis completed! :ok_hand:")
-    st.write(f"{st.session_state.sentence_number} sentence is used.")
-    st.write(f"{st.session_state.comment_number} comments is used.")
+   
 
 
 
@@ -480,6 +479,10 @@ if  len(st.session_state.id)>0:
 
 
 if len(st.session_state.neutral_entities)>0 or len( st.session_state.negative_entities)>0  or len(st.session_state.positive_entities)>0:
+    st.success("Analysis completed! :white_check_mark:")
+    st.write(f" {st.session_state.comment_number} number of comments found eligible for this analysis, and {st.session_state.sentence_number} number of sentences analyzed.")
+
+    
     st.title('Sentiment Analysis')
 
     # Define the chart data
@@ -515,15 +518,12 @@ if len(st.session_state.neutral_entities)>0 or len( st.session_state.negative_en
 
 
 if st.session_state.graph_pos:
-    st.subheader("📌Entity Relations in  Positive Sentences")
-    svg_content = generate_network_graph(st.session_state.graph_pos )
+    st.subheader("📌 Entities and Relations in  Positive Sentences")
+    svg_content = generate_network_graph(st.session_state.graph_pos)
     st.image(svg_content)
-
-    posi_df = sna(st.session_state.graph_pos)
-    
+    posi_df = sna(st.session_state.graph_pos) 
     with st.expander("SNA"):
         st.dataframe(posi_df)
-
 
 
 
@@ -532,22 +532,28 @@ if st.session_state.graph_neg:
     svg_content = generate_network_graph(st.session_state.graph_neg)
     st.image(svg_content)
     nega_df = sna(st.session_state.graph_neg)
-
     with st.expander("SNA"):
         st.dataframe(nega_df)
 
 
-
-
-
 if st.session_state.graph_neu:
-    st.subheader("📌 Entity Relations in Neutural Sentences")
+    st.subheader("📌 Entities and Relations in Neutural Sentences")
     svg_content = generate_network_graph(st.session_state.graph_neu )
     st.image(svg_content) 
     neut_df = sna(st.session_state.graph_neu)
-    
     with st.expander("SNA"):
         st.dataframe(neut_df)
+    st.subheader("📌 Entities and Relations in All Sentences")
+    merged_graph = nx.compose(st.session_state.graph_pos , st.session_state.graph_neg)
+    merged_graph = nx.compose(merged_graph,st.session_state.graph_neu )
+
+    all_svg_content = generate_network_graph(merged_graph)
+    st.image(all_svg_content)
+    all_df_c = sna(merged_graph)
+    with st.expander("SNA"):
+        st.dataframe(all_df_c)
+    
+
 
 
 
